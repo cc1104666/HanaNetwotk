@@ -84,7 +84,7 @@ python3 hana.py
 运行脚本
 
 ```
-python3 main.py -a 2
+python3 hana.py -a 2
 ```
 
 ## 您也可以使用 pm2 在后台运行脚本
