@@ -237,7 +237,7 @@ async def handle_eth_transactions(session: aiohttp.ClientSession, num_transactio
                     else:
                         print(f"{Fore.RED}交易 {i + 1} 从 {short_from_address} 未能在指定时间内确认{Style.RESET_ALL}")
 
-                    break  # 如果交易成功，跳出重试循环
+                    break
 
                 except Exception as e:
                     print(f"{Fore.RED}从 {short_from_address} 发送交易时出错: {str(e)}{Style.RESET_ALL}")
@@ -248,8 +248,7 @@ async def handle_eth_transactions(session: aiohttp.ClientSession, num_transactio
                     else:
                         print(f"{Fore.RED}达到最大重试次数，跳过此交易{Style.RESET_ALL}")
 
-            await asyncio.sleep(1)  # 在处理下一个账户之前稍作等待
-
+            await asyncio.sleep(1)
 
 async def main(mode: str, num_transactions: int = None) -> None:
     for i, (private_key, access_token, proxy) in enumerate(zip(private_keys, access_tokens, proxies)):
@@ -287,7 +286,7 @@ async def main(mode: str, num_transactions: int = None) -> None:
             print(f"{Fore.RED}处理账户 {i + 1} 时出错: {str(e)}{Style.RESET_ALL}")
 
         print(f"{Fore.YELLOW}账户 {i + 1} 处理完成{Style.RESET_ALL}")
-        await asyncio.sleep(5)  # 在处理下一个账户之前稍作等待
+        await asyncio.sleep(5)
 
     if mode == '2':
         print(f"{Fore.RED}所有账户均已处理。冷却10分钟...{Style.RESET_ALL}")
@@ -295,16 +294,19 @@ async def main(mode: str, num_transactions: int = None) -> None:
 
 
 if __name__ == '__main__':
+    print("----------------脚本由anni著作免费开源---------------------")
+    print("----------------推特@lisa50902711142---------------------")
+    print("----------------交流群https://t.me/annilumao---------------------")
     parser = argparse.ArgumentParser(description='选择操作模式。')
-    parser.add_argument('-a', '--action', choices=['1', '2'], help='1：执行交易，2：种植和园艺')
+    parser.add_argument('-a', '--action', choices=['1', '2'], help='1：执行交易，2：耕种')
     parser.add_argument('-tx', '--transactions', type=int, help='要执行的交易数（操作1可选）')
 
     args = parser.parse_args()
 
     if args.action is None:
-        args.action = input(Fore.YELLOW + "选择操作（1：执行交易，2：种植和园艺）： " + Style.RESET_ALL)
+        args.action = input(Fore.YELLOW + "选择操作（1：执行交易，2：耕种）： " + Style.RESET_ALL)
         while args.action not in ['1', '2']:
             print(Fore.RED + "选择无效。请选择1或2。" + Style.RESET_ALL)
-            args.action = input(Fore.YELLOW + "选择操作（1：执行交易，2：种植和园艺）： " + Style.RESET_ALL)
+            args.action = input(Fore.YELLOW + "选择操作（1：执行交易，2：耕种）： " + Style.RESET_ALL)
 
     asyncio.run(main(args.action, args.transactions))
