@@ -49,6 +49,14 @@ pip install -r requirements.txt
 privateKey.txt
 ```
 
+**编辑proxies.txt，输入代理**
+
+```
+proxies.txt
+格式为：
+socks5://user:pass@ip:port
+```
+
 
 
 运行脚本
