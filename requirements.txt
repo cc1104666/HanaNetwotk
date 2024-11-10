@@ -1,0 +1,4 @@
+aiohttp==3.10.10
+web3==6.20.1
+colorama==0.4.6
+aiohttp_socks==0.8.4
