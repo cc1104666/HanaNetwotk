@@ -70,7 +70,7 @@ python3 hana.py
 - 打开 Hana 仪表板：https://hanafuda.hana.network/dashboard
 - 单击 F12 打开控制台
 - 找到应用程序并选择会话存储
-- 选择 hana 并复制你的 refreshToken![image.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/775b8609-bd05-46be-8276-f9668ba25b4f/324cbfd5-6cb2-4c2b-96eb-06fb92d113e6/image.png)
+- 选择 hana 并复制你的 refreshToken![img](https://cdn.nlark.com/yuque/0/2024/png/40368878/1731217135637-6b2ce886-181b-4d4c-9bfa-92807eef74a9.png)
 - 编辑 token.txt 粘贴您的刷新令牌
 
 运行脚本
