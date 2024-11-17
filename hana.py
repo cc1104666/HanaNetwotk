@@ -10,18 +10,14 @@ from colorama import init, Fore, Style
 import itertools
 from urllib.parse import urlparse
 from aiohttp_socks import ProxyType, ProxyConnector
-
-
 init(autoreset=True)
 
 
 RPC_URL = "https://mainnet.base.org"
 CONTRACT_ADDRESS = "0xC5bf05cD32a14BFfb705Fb37a9d218895187376c"
-API_URL = "https://hanafuda-backend-app-520478841386.us-central1.run.app/graphql"
+api_url = "https://hanafuda-backend-app-520478841386.us-central1.run.app/graphql"
 AMOUNT_ETH = 0.0000000001
 FIREBASE_API_KEY = "AIzaSyDipzN0VRfTPnMGhQ5PSzO27Cxm3DohJGY"
-
-
 web3 = Web3(Web3.HTTPProvider(RPC_URL))
 
 
@@ -57,7 +53,7 @@ CONTRACT_ABI = json.loads('''
 ''')
 
 
-HEADERS = {
+headers = {
     'Accept': '*/*',
     'Content-Type': 'application/json',
     'User-Agent': "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1"
@@ -73,22 +69,23 @@ async def get_proxy_ip(session: aiohttp.ClientSession) -> str:
         return "未知"
 
 
-async def make_request(session: aiohttp.ClientSession, url: str, method: str, payload_data: Dict[str, Any] = None) -> \
+async def colay(session: aiohttp.ClientSession, url: str, method: str, payload_data: Dict[str, Any] = None) -> \
 Dict[str, Any]:
-    async with session.request(method, url, headers=HEADERS, json=payload_data) as response:
+    async with session.request(method, url, headers=headers, json=payload_data) as response:
         if response.status != 200:
             raise Exception(f'HTTP错误！状态码: {response.status}')
         return await response.json()
 
 
 async def refresh_access_token(session: aiohttp.ClientSession, refresh_token: str) -> str:
+    api_key = "AIzaSyDipzN0VRfTPnMGhQ5PSzO27Cxm3DohJGY"
     async with session.post(
-            f'https://securetoken.googleapis.com/v1/token?key={FIREBASE_API_KEY}',
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data=f'grant_type=refresh_token&refresh_token={refresh_token}'
+        f'https://securetoken.googleapis.com/v1/token?key={api_key}',
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        data=f'grant_type=refresh_token&refresh_token={refresh_token}'
     ) as response:
         if response.status != 200:
-            raise Exception("刷新访问令牌失败")
+            raise Exception("Failed to refresh access token")
         data = await response.json()
         return data.get('access_token')
 
@@ -98,74 +95,73 @@ async def handle_grow_and_garden(session: aiohttp.ClientSession, refresh_token: 
     print(f"{Fore.CYAN}当前使用的代理IP: {proxy_ip}{Style.RESET_ALL}")
 
     new_access_token = await refresh_access_token(session, refresh_token)
-    HEADERS['authorization'] = f'Bearer {new_access_token}'
+    headers['authorization'] = f'Bearer {new_access_token}'
 
     info_query = {
-        "query": """
-        query getCurrentUser {
-            currentUser { id totalPoint depositCount }
-            getGardenForCurrentUser {
-                gardenStatus { growActionCount gardenRewardActionCount }
-            }
-        }
-        """,
+        "query": "query getCurrentUser { "
+                 "currentUser { id totalPoint depositCount } "
+                 "getGardenForCurrentUser { "
+                 "gardenStatus { growActionCount gardenRewardActionCount } "
+                 "} "
+                 "}",
         "operationName": "getCurrentUser"
     }
-    info = await make_request(session, API_URL, 'POST', info_query)
+    info = await colay(session, api_url, 'POST', info_query)
 
-    user_data = info['data']['currentUser']
-    garden_data = info['data']['getGardenForCurrentUser']['gardenStatus']
+    balance = info['data']['currentUser']['totalPoint']
+    deposit = info['data']['currentUser']['depositCount']
+    grow = info['data']['getGardenForCurrentUser']['gardenStatus']['growActionCount']
+    garden = info['data']['getGardenForCurrentUser']['gardenStatus']['gardenRewardActionCount']
 
-    balance = user_data['totalPoint']
-    deposit = user_data['depositCount']
-    grow = garden_data['growActionCount']
-    garden = garden_data['gardenRewardActionCount']
+    print(f"{Fore.GREEN}积分：{balance} | 存款次数：{deposit} | 剩余增长次数：{grow} | 剩余花园次数：{garden}{Style.RESET_ALL}")
 
-    print(f"{Fore.GREEN}积分: {balance} | 存款次数: {deposit} | 剩余成长次数: {grow} | 剩余花园次数: {garden}{Style.RESET_ALL}")
-
-    async def grow_action() -> int:
-        action_query = {
-            "query": "mutation issueGrowAction { issueGrowAction commitGrowAction }",
-            "operationName": "issueGrowAction"
+    async def grow_action():
+        grow_action_query = {
+            "query": """
+                  mutation executeGrowAction {
+                      executeGrowAction(withAll: true) {
+                          totalValue
+                          multiplyRate
+                      }
+                      executeSnsShare(actionType: GROW, snsType: X) {
+                          bonus
+                      }
+                  }
+              """,
+            "operationName": "executeGrowAction"
         }
+
         try:
-            mine = await make_request(session, API_URL, 'POST', action_query)
-            if mine and 'data' in mine and 'issueGrowAction' in mine['data']:
-                return mine['data']['issueGrowAction']
+            mine = await colay(session, api_url, 'POST', grow_action_query)
+
+            if mine and 'data' in mine and 'executeGrowAction' in mine['data']:
+                reward = mine['data']['executeGrowAction']['totalValue']
+                return reward
             else:
-                print(f"{Fore.RED}错误：意外的响应格式: {mine}{Style.RESET_ALL}")
+                print(f"{Fore.RED}错误：响应格式异常：{mine}{Style.RESET_ALL}")
                 return 0
         except Exception as e:
-            print(f"{Fore.RED}成长操作出错: {str(e)}{Style.RESET_ALL}")
+
             return 0
 
-    while grow > 0:
-        grow_count = min(grow, 10)
-        tasks = [grow_action() for _ in range(grow_count)]
-        results = await asyncio.gather(*tasks)
+    if grow > 0:
 
-        for reward in results:
-            if reward != 0:
-                balance += reward
-                grow -= 1
-                print(f"{Fore.GREEN}奖励: {reward} | 余额: {balance} | 剩余成长次数: {grow}{Style.RESET_ALL}")
+        reward = await grow_action()
+
+        if reward:
+            balance += reward
+            grow = 0
+            print(f"{Fore.GREEN}Rewards: {reward} | Balance: {balance} | Grow left: {grow}{Style.RESET_ALL}")
 
     while garden >= 10:
         garden_action_query = {
-            "query": """
-            mutation executeGardenRewardAction($limit: Int!) {
-                executeGardenRewardAction(limit: $limit) {
-                    data { cardId group }
-                    isNew
-                }
-            }
-            """,
+            "query": "mutation executeGardenRewardAction($limit: Int!) { executeGardenRewardAction(limit: $limit) { data { cardId group } isNew } }",
             "variables": {"limit": 10},
             "operationName": "executeGardenRewardAction"
         }
-        mine_garden = await make_request(session, API_URL, 'POST', garden_action_query)
+        mine_garden = await colay(session, api_url, 'POST', garden_action_query)
         card_ids = [item['data']['cardId'] for item in mine_garden['data']['executeGardenRewardAction']]
-        print(f"{Fore.GREEN}打开花园: {card_ids}{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}Opened Garden: {card_ids}{Style.RESET_ALL}")
         garden -= 10
 
 
@@ -192,63 +188,48 @@ async def handle_eth_transactions(session: aiohttp.ClientSession, num_transactio
     proxy_ip = await get_proxy_ip(session)
     print(f"{Fore.CYAN}当前使用的代理IP: {proxy_ip}{Style.RESET_ALL}")
 
+    global nonces
     amount_wei = web3.to_wei(AMOUNT_ETH, 'ether')
-    contract = web3.eth.contract(address=CONTRACT_ADDRESS, abi=CONTRACT_ABI)
-
+    contract = web3.eth.contract(address=CONTRACT_ADDRESS, abi=json.loads(contract_abi))
+    nonces = {key: web3.eth.get_transaction_count(web3.eth.account.from_key(key).address) for key in private_keys}
     for i in range(num_transactions):
         for private_key in private_keys:
+
             from_address = web3.eth.account.from_key(private_key).address
             short_from_address = from_address[:4] + "..." + from_address[-4:]
 
-            max_attempts = 3
-            attempt = 0
+            try:
+                transaction = contract.functions.depositETH().build_transaction({
+                    'from': from_address,
+                    'value': amount_wei,
+                    'gas': 100000,
+                    'gasPrice': web3.eth.gas_price,
+                    'nonce': nonces[private_key],
+                })
 
-            while attempt < max_attempts:
-                try:
-                    balance = web3.eth.get_balance(from_address)
-                    if balance < amount_wei:
-                        print(
-                            f"{Fore.RED}账户 {short_from_address} 余额不足。当前余额: {web3.from_wei(balance, 'ether')} ETH{Style.RESET_ALL}")
-                        break
+                signed_txn = web3.eth.account.sign_transaction(transaction, private_key=private_key)
+                tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+                print(
+                    f"{Fore.GREEN}Transaction {i + 1} sent from {short_from_address} with hash: {tx_hash.hex()}{Style.RESET_ALL}")
 
-                    nonce = web3.eth.get_transaction_count(from_address)
-                    gas_price = await get_gas_price_strategy(web3)
-                    gas_limit = 100000  # 设置一个合理的 gas limit
+                nonces[private_key] += 1
+                await asyncio.sleep(1)
 
-                    transaction = contract.functions.depositETH().build_transaction({
-                        'from': from_address,
-                        'value': amount_wei,
-                        'gas': gas_limit,
-                        'gasPrice': gas_price,
-                        'nonce': nonce,
-                    })
-
-                    signed_txn = web3.eth.account.sign_transaction(transaction, private_key=private_key)
-                    tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-
-                    print(f"{Fore.YELLOW}交易 {i + 1} 从 {short_from_address} 发送，哈希: {tx_hash.hex()}{Style.RESET_ALL}")
-
-                    receipt = await wait_for_transaction_receipt(web3, tx_hash)
-                    if receipt:
-                        if receipt['status'] == 1:
-                            print(f"{Fore.GREEN}交易 {i + 1} 从 {short_from_address} 成功确认{Style.RESET_ALL}")
-                        else:
-                            print(f"{Fore.RED}交易 {i + 1} 从 {short_from_address} 失败{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}交易 {i + 1} 从 {short_from_address} 未能在指定时间内确认{Style.RESET_ALL}")
-
-                    break
-
-                except Exception as e:
-                    print(f"{Fore.RED}从 {short_from_address} 发送交易时出错: {str(e)}{Style.RESET_ALL}")
-                    attempt += 1
-                    if attempt < max_attempts:
-                        print(f"{Fore.YELLOW}正在重试... (尝试 {attempt + 1}/{max_attempts}){Style.RESET_ALL}")
-                        await asyncio.sleep(2)  # 在重试之前等待一段时间
-                    else:
-                        print(f"{Fore.RED}达到最大重试次数，跳过此交易{Style.RESET_ALL}")
-
-            await asyncio.sleep(1)
+            except Exception as e:
+                if 'nonce too low' in str(e):
+                    print(
+                        f"{Fore.RED}Nonce too low for {short_from_address}. Fetching the latest nonce...{Style.RESET_ALL}")
+                    nonces[private_key] = web3.eth.get_transaction_count(from_address)
+                elif 'already known' in str(e):
+                    print(
+                        f"{Fore.RED}Nonce too low for {short_from_address}. Fetching the latest nonce...{Style.RESET_ALL}")
+                    nonces[private_key] = web3.eth.get_transaction_count(from_address)
+                elif 'replacement transaction underpriced' in str(e):
+                    print(
+                        f"{Fore.RED}Nonce too low for {short_from_address}. Fetching the latest nonce...{Style.RESET_ALL}")
+                    nonces[private_key] = web3.eth.get_transaction_count(from_address)
+                else:
+                    print(f"{Fore.RED}Error sending transaction from {short_from_address}: {str(e)}{Style.RESET_ALL}")
 
 async def main(mode: str, num_transactions: int = None) -> None:
     for i, (private_key, access_token, proxy) in enumerate(zip(private_keys, access_tokens, proxies)):
